@@ -358,9 +358,9 @@ export const useAppStore = create<AppState>()(
       const { assets } = get();
       return assets[id];
     },
-    getAlertsByAsset: (assetId) => {
+    getAlertsByAsset: (assetId: string) => {
       const { alerts } = get();
-      return alerts.filter((a) => a.source === assetId || a.target === assetId);
+      return alerts.filter((a) => a.attacker_ip === assetId || a.victim_ip === assetId);
     },
     getStorylinesByAsset: (assetId) => {
       const { storylines } = get();
