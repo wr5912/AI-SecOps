@@ -55,35 +55,37 @@ import { FeedbackPanel, FeedbackFloatingButton, InlineFeedback } from './compone
 import { AlertPanel, AlertPanelFloatingBadge } from './components/AlertPanel'
 
 // ==================== Mock Data ====================
+// Updated to align with FRONTEND_DESIGN_DOCUMENT.md Chapter 4 Data Models
 
 const mockAssets: Asset[] = [
-  { id: 'fw-01', name: '边界防火墙', ip: '10.0.0.1', type: 'firewall', status: 'normal', risk: 15, os: 'FortiOS 7.0', department: 'IT部', owner: '张工', ports: [443, 22], vulnerabilities: [], connections: ['srv-web-01', 'srv-db-01'], lastSeen: new Date().toISOString() },
-  { id: 'srv-web-01', name: 'Web服务器-ERP', ip: '10.0.0.25', type: 'server', status: 'critical', risk: 92, os: 'Ubuntu 22.04', department: 'IT部', owner: '李工', ports: [80, 443, 22, 3306], vulnerabilities: [{ cvss: 9.8, name: 'CVE-2024-0001' }, { cvss: 7.5, name: 'CVE-2023-44487' }], connections: ['fw-01', 'srv-db-01', 'srv-file-01'], lastSeen: new Date().toISOString() },
-  { id: 'srv-db-01', name: '核心数据库', ip: '10.0.0.30', type: 'database', status: 'warning', risk: 68, os: 'CentOS 8', department: '数据部', owner: '王工', ports: [5432, 22], vulnerabilities: [{ cvss: 6.5, name: 'CVE-2023-0002' }], connections: ['fw-01', 'srv-web-01'], lastSeen: new Date().toISOString() },
-  { id: 'srv-file-01', name: '文件服务器', ip: '10.0.0.40', type: 'server', status: 'normal', risk: 35, os: 'Windows Server 2022', department: 'IT部', owner: '赵工', ports: [445, 139], vulnerabilities: [], connections: ['srv-web-01'], lastSeen: new Date().toISOString() },
-  { id: 'ep-finance-01', name: '财务工作站', ip: '10.0.1.88', type: 'endpoint', status: 'compromised', risk: 98, os: 'Windows 11', department: '财务部', owner: '陈财务', ports: [135, 445], vulnerabilities: [{ cvss: 9.8, name: 'CVE-2024-0003' }], connections: ['srv-web-01', 'srv-db-01'], lastSeen: new Date().toISOString() },
-  { id: 'ep-hr-01', name: 'HR工作站', ip: '10.0.1.100', type: 'endpoint', status: 'normal', risk: 28, os: 'Windows 11', department: '人事部', owner: '刘HR', ports: [], vulnerabilities: [], connections: ['srv-web-01'], lastSeen: new Date().toISOString() },
-  { id: 'iot-gateway', name: 'IoT网关', ip: '10.0.2.10', type: 'iot', status: 'warning', risk: 72, os: 'Linux 5.4', department: '运维部', owner: '周运维', ports: [8080, 22], vulnerabilities: [{ cvss: 8.1, name: 'CVE-2023-0003' }], connections: ['fw-01'], lastSeen: new Date().toISOString() },
-  { id: 'cloud-storage', name: '云存储', ip: '172.16.0.50', type: 'cloud', status: 'normal', risk: 22, os: 'Linux', department: 'IT部', owner: '云团队', ports: [443], vulnerabilities: [], connections: ['srv-web-01'], lastSeen: new Date().toISOString() },
+  { id: 'fw-01', trace_id: 'trace-fw-01', name: '边界防火墙', ip: '10.0.0.1', type: 'firewall', status: 'normal', risk_score: 15, os: 'FortiOS 7.0', department: 'IT部', owner: '张工', ports: [443, 22], vulnerabilities: [], connections: ['srv-web-01', 'srv-db-01'], lastSeen: new Date().toISOString() },
+  { id: 'srv-web-01', trace_id: 'trace-srv-web-01', name: 'Web服务器-ERP', ip: '10.0.0.25', type: 'server', status: 'critical', risk_score: 92, os: 'Ubuntu 22.04', department: 'IT部', owner: '李工', ports: [80, 443, 22, 3306], vulnerabilities: [{ cvss: 9.8, name: 'CVE-2024-0001' }, { cvss: 7.5, name: 'CVE-2023-44487' }], connections: ['fw-01', 'srv-db-01', 'srv-file-01'], lastSeen: new Date().toISOString() },
+  { id: 'srv-db-01', trace_id: 'trace-srv-db-01', name: '核心数据库', ip: '10.0.0.30', type: 'database', status: 'warning', risk_score: 68, os: 'CentOS 8', department: '数据部', owner: '王工', ports: [5432, 22], vulnerabilities: [{ cvss: 6.5, name: 'CVE-2023-0002' }], connections: ['fw-01', 'srv-web-01'], lastSeen: new Date().toISOString() },
+  { id: 'srv-file-01', trace_id: 'trace-srv-file-01', name: '文件服务器', ip: '10.0.0.40', type: 'server', status: 'normal', risk_score: 35, os: 'Windows Server 2022', department: 'IT部', owner: '赵工', ports: [445, 139], vulnerabilities: [], connections: ['srv-web-01'], lastSeen: new Date().toISOString() },
+  { id: 'ep-finance-01', trace_id: 'trace-ep-finance-01', name: '财务工作站', ip: '10.0.1.88', type: 'endpoint', status: 'compromised', risk_score: 98, os: 'Windows 11', department: '财务部', owner: '陈财务', ports: [135, 445], vulnerabilities: [{ cvss: 9.8, name: 'CVE-2024-0003' }], connections: ['srv-web-01', 'srv-db-01'], lastSeen: new Date().toISOString() },
+  { id: 'ep-hr-01', trace_id: 'trace-ep-hr-01', name: 'HR工作站', ip: '10.0.1.100', type: 'endpoint', status: 'normal', risk_score: 28, os: 'Windows 11', department: '人事部', owner: '刘HR', ports: [], vulnerabilities: [], connections: ['srv-web-01'], lastSeen: new Date().toISOString() },
+  { id: 'iot-gateway', trace_id: 'trace-iot-gateway', name: 'IoT网关', ip: '10.0.2.10', type: 'iot', status: 'warning', risk_score: 72, os: 'Linux 5.4', department: '运维部', owner: '周运维', ports: [8080, 22], vulnerabilities: [{ cvss: 8.1, name: 'CVE-2023-0003' }], connections: ['fw-01'], lastSeen: new Date().toISOString() },
+  { id: 'cloud-storage', trace_id: 'trace-cloud-storage', name: '云存储', ip: '172.16.0.50', type: 'cloud', status: 'normal', risk_score: 22, os: 'Linux', department: 'IT部', owner: '云团队', ports: [443], vulnerabilities: [], connections: ['srv-web-01'], lastSeen: new Date().toISOString() },
 ]
 
 const mockAlerts: Alert[] = [
-  { id: 'alert-001', level: 'critical', source: '203.0.113.45', target: '10.0.0.25', type: 'SQL注入攻击', time: '14:32:15', mitreTactic: 'T1190', confidence: 95, storylineId: 'story-001', acknowledged: false },
-  { id: 'alert-002', level: 'critical', source: '10.0.1.88', target: '10.0.0.30', type: '异常横向移动-暴力破解', time: '14:30:42', mitreTactic: 'T1210', confidence: 88, storylineId: 'story-001', acknowledged: false },
-  { id: 'alert-003', level: 'high', source: '10.0.1.88', target: '10.0.0.40', type: '可疑文件传输', time: '14:28:33', mitreTactic: 'T1041', confidence: 76, storylineId: 'story-001', acknowledged: false },
-  { id: 'alert-004', level: 'medium', source: '10.0.1.88', target: '8.8.8.8', type: '可疑外联-C2通信', time: '14:25:18', mitreTactic: 'T1071', confidence: 65, storylineId: 'story-001', acknowledged: false },
-  { id: 'alert-005', level: 'high', source: '45.33.32.156', target: '10.0.0.1', type: '端口扫描', time: '14:20:00', mitreTactic: 'T1595', confidence: 92, storylineId: 'story-002', acknowledged: false },
+  { id: 'alert-001', trace_id: 'trace-alert-001', severity: 'critical', attacker_ip: '203.0.113.45', victim_ip: '10.0.0.25', type: 'SQL注入攻击', time: '14:32:15', mitre_tactic: 'T1190', confidence_score: 95, storyline_id: 'story-001', acknowledged: false },
+  { id: 'alert-002', trace_id: 'trace-alert-002', severity: 'critical', attacker_ip: '10.0.1.88', victim_ip: '10.0.0.30', type: '异常横向移动-暴力破解', time: '14:30:42', mitre_tactic: 'T1210', confidence_score: 88, storyline_id: 'story-001', acknowledged: false },
+  { id: 'alert-003', trace_id: 'trace-alert-003', severity: 'high', attacker_ip: '10.0.1.88', victim_ip: '10.0.0.40', type: '可疑文件传输', time: '14:28:33', mitre_tactic: 'T1041', confidence_score: 76, storyline_id: 'story-001', acknowledged: false },
+  { id: 'alert-004', trace_id: 'trace-alert-004', severity: 'medium', attacker_ip: '10.0.1.88', victim_ip: '8.8.8.8', type: '可疑外联-C2通信', time: '14:25:18', mitre_tactic: 'T1071', confidence_score: 65, storyline_id: 'story-001', acknowledged: false },
+  { id: 'alert-005', trace_id: 'trace-alert-005', severity: 'high', attacker_ip: '45.33.32.156', victim_ip: '10.0.0.1', type: '端口扫描', time: '14:20:00', mitre_tactic: 'T1595', confidence_score: 92, storyline_id: 'story-002', acknowledged: false },
 ]
 
 const mockStorylines: Storyline[] = [
   {
     id: 'story-001',
+    trace_id: 'trace-story-001',
     title: '财务主机被攻陷 - 横向移动攻击',
     description: '攻击者通过Web服务器漏洞进入系统，获取财务主机权限后尝试横向移动到核心数据库',
     severity: 'critical',
-    confidence: 92,
+    confidence_score: 92,
     assets: ['srv-web-01', 'ep-finance-01', 'srv-db-01'],
-    mitreTactics: ['T1190', 'T1210', 'T1041', 'T1071'],
+    mitre_tactics: ['T1190', 'T1210', 'T1041', 'T1071'],
     steps: [
       { time: '14:15:00', event: '外部攻击-IP注入', node: 'srv-web-01' },
       { time: '14:20:00', event: '漏洞利用-获得shell', node: 'srv-web-01' },
@@ -390,22 +392,13 @@ const NetworkCanvas = () => {
     [storylines, selectedStorylineId]
   )
 
-  // Initialize assets on mount and sync nodes when assets change
+  // Initialize assets on mount
   useEffect(() => {
-    // Initialize assets on first mount
     setAssets(mockAssets)
-  }, [])
+  }, [setAssets])
 
-  // Sync nodes when assetList changes (e.g., after initial load)
-  useEffect(() => {
-    if (assetList.length === 0) return
-    // Only update if current nodes don't match assets
-    if (nodes.length !== assetList.length) {
-      setNodes(initialNodes)
-    }
-  }, [assetList.length])
-
-  const initialNodes: Node[] = useMemo(() => {
+  // Compute nodes based on assetList
+  const computedNodes: Node[] = useMemo(() => {
     if (assetList.length === 0) return []
 
     const centerX = 400
@@ -433,37 +426,55 @@ const NetworkCanvas = () => {
     })
   }, [assetList, warMode, currentStoryline, selectedAssetId])
 
-  const initialEdges: Edge[] = useMemo(() => {
+  // Compute edges based on assetList
+  const computedEdges: Edge[] = useMemo(() => {
     const edges: Edge[] = []
 
     assetList.forEach(asset => {
       asset.connections.forEach(connId => {
-        const isAttackPath = currentStoryline?.assets.includes(asset.id) &&
-          currentStoryline?.assets.includes(connId)
+        // Only add edge if target exists in assetList
+        if (assetList.find(a => a.id === connId)) {
+          const isAttackPath = currentStoryline?.assets.includes(asset.id) &&
+            currentStoryline?.assets.includes(connId)
 
-        edges.push({
-          id: `${asset.id}-${connId}`,
-          source: asset.id,
-          target: connId,
-          type: 'smoothstep',
-          animated: warMode && isAttackPath,
-          style: {
-            stroke: warMode && isAttackPath ? '#EF4444' : warMode ? '#7F1D1D' : '#475569',
-            strokeWidth: warMode && isAttackPath ? 3 : 2
-          },
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            color: warMode && isAttackPath ? '#EF4444' : '#475569'
-          }
-        })
+          edges.push({
+            id: `${asset.id}-${connId}`,
+            source: asset.id,
+            target: connId,
+            type: 'smoothstep',
+            animated: warMode && isAttackPath,
+            style: {
+              stroke: warMode && isAttackPath ? '#EF4444' : warMode ? '#7F1D1D' : '#475569',
+              strokeWidth: warMode && isAttackPath ? 3 : 2
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: warMode && isAttackPath ? '#EF4444' : '#475569'
+            }
+          })
+        }
       })
     })
 
     return edges
   }, [assetList, warMode, currentStoryline])
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
+
+  // Sync nodes when computedNodes changes
+  useEffect(() => {
+    if (computedNodes.length > 0) {
+      setNodes(computedNodes)
+    }
+  }, [computedNodes, setNodes])
+
+  // Sync edges when computedEdges changes
+  useEffect(() => {
+    if (computedEdges.length > 0) {
+      setEdges(computedEdges)
+    }
+  }, [computedEdges, setEdges])
 
   useEffect(() => {
     setNodes(nodes => nodes.map(node => ({
@@ -585,6 +596,7 @@ const AICopilot = () => {
     if (copilotMessages.length === 0) {
       addCopilotMessage({
         id: '1',
+        trace_id: 'trace-welcome',
         role: 'assistant',
         content: '您好！我是安全AI助手。可以帮我：\n\n• 分析安全事件和攻击链路\n• 查询威胁情报 (IOC)\n• 建议响应处置方案\n• 解释告警和漏洞\n\n也可以直接点击画布上的资产，我会提供上下文分析。',
         timestamp: new Date()
@@ -602,6 +614,7 @@ const AICopilot = () => {
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
+      trace_id: `trace-msg-${Date.now()}`,
       role: 'user',
       content: input,
       timestamp: new Date()
@@ -666,6 +679,7 @@ const AICopilot = () => {
 
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
+        trace_id: `trace-msg-${Date.now()}`,
         role: 'assistant',
         content: responseContent,
         timestamp: new Date(),
@@ -892,14 +906,14 @@ const StorylinePanel = () => {
                   <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full ${warMode ? 'bg-red-500' : 'bg-cyan-500'}`}
-                      style={{ width: `${storyline.confidence}%` }}
+                      style={{ width: `${storyline.confidence_score}%` }}
                     />
                   </div>
                   <span className={`text-xs font-medium ${warMode ? 'text-red-400' : 'text-cyan-400'}`}>
-                    {storyline.confidence}%
+                    {storyline.confidence_score}%
                   </span>
                 </div>
-                <span className="text-xs text-slate-500">{storyline.mitreTactics.length} 个战术</span>
+                <span className="text-xs text-slate-500">{storyline.mitre_tactics.length} 个战术</span>
               </div>
 
               <div className="space-y-2">
@@ -990,8 +1004,8 @@ const AssetHologramCard = () => {
           <div>
             <div className="text-xs text-slate-500 mb-1">风险评分</div>
             <div className={`text-sm font-bold ${
-              asset.risk > 80 ? 'text-red-400' : asset.risk > 60 ? 'text-orange-400' : 'text-emerald-400'
-            }`}>{asset.risk}/100</div>
+              asset.risk_score > 80 ? 'text-red-400' : asset.risk_score > 60 ? 'text-orange-400' : 'text-emerald-400'
+            }`}>{asset.risk_score}/100</div>
           </div>
         </div>
 
@@ -1095,7 +1109,7 @@ const HUD = () => {
   const alertCount = alerts.filter(a => !a.acknowledged).length
   const assetCount = assetList.length
   const onlinePercent = Math.round((assetList.filter(a => a.status !== 'compromised').length / assetCount) * 100) || 0
-  const threatLevel = warMode ? 92 : Math.min(100, Math.round((alerts.filter(a => a.level === 'critical').length / 5) * 100) + 30)
+  const threatLevel = warMode ? 92 : Math.min(100, Math.round((alerts.filter(a => a.severity === 'critical').length / 5) * 100) + 30)
 
   return (
     <div className={`fixed top-0 left-0 right-0 h-14 backdrop-blur-xl border-b z-30 transition-all duration-500 ${

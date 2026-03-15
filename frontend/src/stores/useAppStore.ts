@@ -7,6 +7,9 @@ import { subscribeWithSelector } from 'zustand/middleware';
 
 // ==================== Type Definitions ====================
 
+// Following FRONTEND_DESIGN_DOCUMENT.md Chapter 4 Data Models
+// snake_case for API compatibility, camelCase for internal use with proper mapping
+
 export type AssetStatus = 'normal' | 'warning' | 'critical' | 'compromised';
 export type AssetType = 'server' | 'endpoint' | 'database' | 'firewall' | 'iot' | 'cloud';
 export type AlertLevel = 'critical' | 'high' | 'medium' | 'low';
@@ -14,14 +17,15 @@ export type StorylineStatus = 'active' | 'investigating' | 'contained' | 'resolv
 export type UserRole = 'admin' | 'analyst' | 'viewer' | 'ciso';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
-// Asset Interface
+// Asset Interface - Aligned with Design Document Section 4.1
 export interface Asset {
   id: string;
+  trace_id: string;  // Required per design document
   name: string;
   ip: string;
   type: AssetType;
   status: AssetStatus;
-  risk: number;
+  risk_score: number;  // Changed from 'risk' to match design
   os: string;
   department: string;
   owner: string;
@@ -29,47 +33,56 @@ export interface Asset {
   vulnerabilities: { cvss: number; name: string }[];
   connections: string[];
   lastSeen: string;
-  traceId?: string;
 }
 
-// Alert Interface
+// Alert Interface - Aligned with Design Document Section 4.2
 export interface Alert {
   id: string;
-  level: AlertLevel;
-  source: string;
-  target: string;
+  trace_id: string;  // Required per design document
+  severity: AlertLevel;  // Changed from 'level' to match design
+  attacker_ip: string;  // Changed from 'source' to match design
+  victim_ip: string;  // Changed from 'target' to match design
   type: string;
   time: string;
-  mitreTactic: string;
-  confidence: number;
-  storylineId?: string;
-  traceId?: string;
+  mitre_tactic: string;  // Changed from 'mitreTactic' to match design (snake_case)
+  confidence_score: number;  // Changed from 'confidence' to match design
+  storyline_id?: string;  // Changed from 'storylineId' to match design
   acknowledged: boolean;
 }
 
-// Storyline Interface
+// Legacy aliases for backward compatibility during migration
+export type AlertLegacy = Alert & {
+  level?: AlertLevel;
+  source?: string;
+  target?: string;
+  mitreTactic?: string;
+  confidence?: number;
+  storylineId?: string;
+};
+
+// Storyline Interface - Aligned with Design Document Section 4.3
 export interface Storyline {
   id: string;
+  trace_id: string;  // Required per design document
   title: string;
   description: string;
   severity: AlertLevel;
-  confidence: number;
+  confidence_score: number;  // Changed from 'confidence' to match design
   assets: string[];
-  mitreTactics: string[];
+  mitre_tactics: string[];  // Changed from 'mitreTactics' to match design (snake_case)
   steps: { time: string; event: string; node: string }[];
   status: StorylineStatus;
-  traceId?: string;
   aiReasoning?: string[];
 }
 
-// Chat Message Interface
+// Chat Message Interface - Aligned with Design Document Section 4.4
 export interface ChatMessage {
   id: string;
+  trace_id: string;  // Required per design document
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
   actions?: { label: string; action: string }[];
-  traceId?: string;
 }
 
 // HITL Approval Request
