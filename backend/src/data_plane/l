@@ -1,0 +1,441 @@
+"""
+Layer 3: 知识图谱层
+负责构建安全知识图谱，实现实体关联与攻击链分析
+"""
+
+import uuid
+from datetime import datetime
+from typing import Optional, List, Dict
+from enum import Enum
+from pydantic import BaseModel, Field
+from loguru import logger
+
+
+class NodeType(str, Enum):
+    """节点类型"""
+    ASSET = "asset"
+    IP = "ip"
+    DOMAIN = "domain"
+    USER = "user"
+    THREAT_ACTOR = "threat_actor"
+    MALWARE = "malware"
+    VULNERABILITY = "vulnerability"
+    ALERT = "alert"
+
+
+class EdgeType(str, Enum):
+    """边类型"""
+    COMMUNICATES_WITH = "communicates_with"
+    ATTACKS = "attacks"
+    COMPROMISES = "compromises"
+    CONNECTS_TO = "connects_to"
+    RUNS_ON = "runs_on"
+    OWNED_BY = "owned_by"
+    BELONGS_TO = "belongs_to"
+    RELATED_TO = "related_to"
+
+
+class GraphNode(BaseModel):
+    """图节点"""
+    id: str
+    trace_id: str = Field(default_factory=lambda: f"trk-node-{uuid.uuid4().hex[:8]}")
+    type: NodeType
+    name: str
+    properties: dict = {}
+    first_seen: datetime = Field(default_factory=datetime.utcnow)
+    last_seen: datetime = Field(default_factory=datetime.utcnow)
+
+
+class GraphEdge(BaseModel):
+    """图边"""
+    id: str
+    trace_id: str = Field(default_factory=lambda: f"trk-edge-{uuid.uuid4().hex[:8]}")
+    source_id: str
+    target_id: str
+    type: EdgeType
+    properties: dict = {}
+    weight: float = 1.0
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Storyline(BaseModel):
+    """攻击故事线"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    trace_id: str = Field(default_factory=lambda: f"trk-story-{uuid.uuid4().hex[:8]}")
+    title: str
+    description: str
+    severity: str = "medium"
+    confidence_score: int = 50
+    status: str = "active"
+    nodes: List[str] = []
+    edges: List[str] = []
+    mitre_tactics: List[str] = []
+    mitre_techniques: List[str] = []
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class KnowledgeGraph:
+    """
+    知识图谱管理器
+    1. 节点管理（资产、IP、用户等）
+    2. 边管理（关系、攻击路径）
+    3. 故事线构建
+    4. 攻击链分析
+    """
+    
+    def __init__(self):
+        self.nodes: Dict[str, GraphNode] = {}
+        self.edges: Dict[str, GraphEdge] = {}
+        self.storylines: Dict[str, Storyline] = {}
+        self.stats = {
+            "total_nodes": 0,
+            "total_edges": 0,
+            "by_type": {},
+            "storylines_count": 0
+        }
+    
+    # ========== 节点操作 ==========
+    
+    async def add_node(
+        self,
+        node_type: NodeType,
+        name: str,
+        properties: dict = None
+    ) -> GraphNode:
+        """添加节点"""
+        node_id = f"{node_type.value}-{uuid.uuid4().hex[:8]}"
+        
+        node = GraphNode(
+            id=node_id,
+            type=node_type,
+            name=name,
+            properties=properties or {}
+        )
+        
+        self.nodes[node_id] = node
+        self.stats["total_nodes"] += 1
+        
+        # 更新类型统计
+        if node_type.value not in self.stats["by_type"]:
+            self.stats["by_type"][node_type.value] = 0
+        self.stats["by_type"][node_type.value] += 1
+        
+        logger.info(f"Added node: {node_id} ({node_type.value})")
+        return node
+    
+    async def get_node(self, node_id: str) -> Optional[GraphNode]:
+        """获取节点"""
+        return self.nodes.get(node_id)
+    
+    async def find_nodes_by_type(self, node_type: NodeType) -> List[GraphNode]:
+        """按类型查找节点"""
+        return [n for n in self.nodes.values() if n.type == node_type]
+    
+    # ========== 边操作 ==========
+    
+    async def add_edge(
+        self,
+        source_id: str,
+        target_id: str,
+        edge_type: EdgeType,
+        properties: dict = None,
+        weight: float = 1.0
+    ) -> Optional[GraphEdge]:
+        """添加边"""
+        # 检查节点是否存在
+        if source_id not in self.nodes or target_id not in self.nodes:
+            logger.warning(f"Source or target node not found: {source_id} -> {target_id}")
+            return None
+        
+        edge_id = f"edge-{uuid.uuid4().hex[:8]}"
+        
+        edge = GraphEdge(
+            id=edge_id,
+            source_id=source_id,
+            target_id=target_id,
+            type=edge_type,
+            properties=properties or {},
+            weight=weight
+        )
+        
+        self.edges[edge_id] = edge
+        self.stats["total_edges"] += 1
+        
+        logger.info(f"Added edge: {source_id} -[{edge_type.value}]-> {target_id}")
+        return edge
+    
+    async def get_edges(self, node_id: str) -> List[GraphEdge]:
+        """获取节点的所有边"""
+        return [
+            e for e in self.edges.values()
+            if e.source_id == node_id or e.target_id == node_id
+        ]
+    
+    # ========== 故事线操作 ==========
+    
+    async def create_storyline(
+        self,
+        title: str,
+        description: str,
+        severity: str = "medium"
+    ) -> Storyline:
+        """创建故事线"""
+        storyline = Storyline(
+            title=title,
+            description=description,
+            severity=severity
+        )
+        
+        self.storylines[storyline.id] = storyline
+        self.stats["storylines_count"] += 1
+        
+        return storyline
+    
+    async def add_to_storyline(
+        self,
+        storyline_id: str,
+        node_id: str,
+        edge_id: str = None
+    ) -> bool:
+        """向故事线添加节点"""
+        if storyline_id not in self.storylines:
+            return False
+        
+        storyline = self.storylines[storyline_id]
+        
+        if node_id not in storyline.nodes:
+            storyline.nodes.append(node_id)
+        
+        if edge_id and edge_id not in storyline.edges:
+            storyline.edges.append(edge_id)
+        
+        storyline.updated_at = datetime.utcnow()
+        return True
+    
+    async def get_storyline(self, storyline_id: str) -> Optional[Storyline]:
+        """获取故事线"""
+        return self.storylines.get(storyline_id)
+    
+    async def get_active_storylines(self) -> List[Storyline]:
+        """获取活跃故事线"""
+        return [s for s in self.storylines.values() if s.status == "active"]
+    
+    # ========== 图查询 ==========
+    
+    async def get_neighbors(self, node_id: str, depth: int = 1) -> Dict:
+        """获取邻居节点"""
+        neighbors = []
+        visited = {node_id}
+        queue = [(node_id, 0)]
+        
+        while queue:
+            current_id, current_depth = queue.pop(0)
+            
+            if current_depth >= depth:
+                continue
+            
+            edges = await self.get_edges(current_id)
+            for edge in edges:
+                neighbor_id = edge.target_id if edge.source_id == current_id else edge.source_id
+                
+                if neighbor_id not in visited:
+                    visited.add(neighbor_id)
+                    neighbor_node = self.nodes.get(neighbor_id)
+                    if neighbor_node:
+                        neighbors.append({
+                            "node": neighbor_node,
+                            "edge": edge,
+                            "depth": current_depth + 1
+                        })
+                        queue.append((neighbor_id, current_depth + 1))
+        
+        return {
+            "center_node": self.nodes.get(node_id),
+            "neighbors": neighbors
+        }
+    
+    async def find_attack_path(
+        self,
+        source_node: str,
+        target_node: str
+    ) -> List[List[str]]:
+        """查找攻击路径（简化版BFS）"""
+        if source_node not in self.nodes or target_node not in self.nodes:
+            return []
+        
+        paths = []
+        queue = [(source_node, [source_node])]
+        visited_paths = set()
+        
+        while queue:
+            current, path = queue.pop(0)
+            
+            if current == target_node:
+                paths.append(path)
+                continue
+            
+            if len(path) > 10:  # 限制路径长度
+                continue
+            
+            edges = await self.get_edges(current)
+            attack_edges = [e for e in edges if e.type in [
+                EdgeType.ATTACKS,
+                EdgeType.COMPROMISES
+            ]]
+            
+            for edge in attack_edges:
+                next_node = edge.target_id if edge.source_id == current else edge.source_id
+                
+                path_key = tuple(path + [next_node])
+                if path_key not in visited_paths:
+                    visited_paths.add(path_key)
+                    queue.append((next_node, path + [next_node]))
+        
+        return paths
+    
+    # ========== 统计 ==========
+    
+    def get_stats(self) -> dict:
+        """获取统计信息"""
+        return {
+            **self.stats,
+            "active_storylines": len([s for s in self.storylines.values() if s.status == "active"])
+        }
+
+
+# 全局实例
+knowledge_graph = KnowledgeGraph()
+
+
+# ============================================
+# API 端点
+# ============================================
+
+from fastapi import APIRouter, HTTPException
+
+router = APIRouter()
+
+
+@router.post("/layer3/nodes")
+async def create_node(
+    node_type: NodeType,
+    name: str,
+    properties: dict = None
+) -> dict:
+    """创建节点"""
+    node = await knowledge_graph.add_node(node_type, name, properties)
+    return {
+        "trace_id": node.trace_id,
+        "success": True,
+        "data": node.model_dump()
+    }
+
+
+@router.get("/layer3/nodes/{node_id}")
+async def get_node(node_id: str) -> dict:
+    """获取节点"""
+    node = await knowledge_graph.get_node(node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    return {
+        "trace_id": str(uuid.uuid4()),
+        "success": True,
+        "data": node.model_dump()
+    }
+
+
+@router.get("/layer3/nodes")
+async def list_nodes(node_type: NodeType = None) -> dict:
+    """列出节点"""
+    if node_type:
+        nodes = await knowledge_graph.find_nodes_by_type(node_type)
+    else:
+        nodes = list(knowledge_graph.nodes.values())
+    return {
+        "trace_id": str(uuid.uuid4()),
+        "success": True,
+        "data": {
+            "items": [n.model_dump() for n in nodes],
+            "total": len(nodes)
+        }
+    }
+
+
+@router.post("/layer3/edges")
+async def create_edge(
+    source_id: str,
+    target_id: str,
+    edge_type: EdgeType,
+    properties: dict = None,
+    weight: float = 1.0
+) -> dict:
+    """创建边"""
+    edge = await knowledge_graph.add_edge(source_id, target_id, edge_type, properties, weight)
+    if not edge:
+        raise HTTPException(status_code=400, detail="Failed to create edge")
+    return {
+        "trace_id": edge.trace_id,
+        "success": True,
+        "data": edge.model_dump()
+    }
+
+
+@router.get("/layer3/nodes/{node_id}/neighbors")
+async def get_neighbors(node_id: str, depth: int = 1) -> dict:
+    """获取邻居节点"""
+    result = await knowledge_graph.get_neighbors(node_id, depth)
+    return {
+        "trace_id": str(uuid.uuid4()),
+        "success": True,
+        "data": result
+    }
+
+
+@router.get("/layer3/storylines")
+async def list_storylines() -> dict:
+    """列出故事线"""
+    storylines = list(knowledge_graph.storylines.values())
+    return {
+        "trace_id": str(uuid.uuid4()),
+        "success": True,
+        "data": {
+            "items": [s.model_dump() for s in storylines],
+            "total": len(storylines)
+        }
+    }
+
+
+@router.post("/layer3/storylines")
+async def create_storyline(title: str, description: str, severity: str = "medium") -> dict:
+    """创建故事线"""
+    storyline = await knowledge_graph.create_storyline(title, description, severity)
+    return {
+        "trace_id": storyline.trace_id,
+        "success": True,
+        "data": storyline.model_dump()
+    }
+
+
+@router.get("/layer3/storylines/active")
+async def get_active_storylines() -> dict:
+    """获取活跃故事线"""
+    storylines = await knowledge_graph.get_active_storylines()
+    return {
+        "trace_id": str(uuid.uuid4()),
+        "success": True,
+        "data": {
+            "items": [s.model_dump() for s in storylines],
+            "total": len(storylines)
+        }
+    }
+
+
+@router.get("/layer3/stats")
+async def get_graph_stats() -> dict:
+    """获取图谱统计"""
+    return {
+        "trace_id": str(uuid.uuid4()),
+        "success": True,
+        "data": knowledge_graph.get_stats()
+    }

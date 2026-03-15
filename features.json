@@ -1,0 +1,525 @@
+{
+  "version": "1.0.0",
+  "phases": [
+    {
+      "name": "Phase 1: 核心数据流",
+      "description": "建立端到端的数据处理流水线，从原始日志到前端可视化",
+      "features": [
+        {
+          "id": "L0-PROJ-001",
+          "layer": "infrastructure",
+          "category": "project_setup",
+          "name": "创建项目目录结构",
+          "description": "创建后端、前端、配置文件的标准项目结构",
+          "priority": "critical",
+          "test_steps": [
+            "检查目录结构: ls -la backend/",
+            "检查目录结构: ls -la frontend/"
+          ],
+          "acceptance_criteria": [
+            "backend/src/ 目录存在且包含正确的子目录",
+            "frontend/src/ 目录存在且包含正确的子目录"
+          ],
+          "passes": true,
+          "implemented_at": "2026-03-14"
+        },
+        {
+          "id": "L0-CONF-001",
+          "layer": "infrastructure",
+          "category": "configuration",
+          "name": "创建AI_SECOPS.md核心配置",
+          "description": "创建项目主配置文件，定义架构、技术栈、API规范",
+          "priority": "critical",
+          "test_steps": [
+            "检查文件存在: cat AI_SECOPS.md"
+          ],
+          "acceptance_criteria": [
+            "AI_SECOPS.md包含完整的项目架构描述",
+            "包含LLM配置（Kimi、MiniMax、本地模型）"
+          ],
+          "passes": true,
+          "implemented_at": "2026-03-14"
+        },
+        {
+          "id": "L1-WEBHOOK-001",
+          "layer": "layer1_flood_gate",
+          "category": "log_reception",
+          "name": "实现Webhook日志接收端点",
+          "description": "实现FastAPI Webhook端点，接收深信服等安全设备的日志推送",
+          "priority": "high",
+          "test_steps": [
+            "启动后端服务: cd backend && uvicorn src.api.main:app",
+            "测试端点: curl -X POST http://localhost:8000/api/v1/ingress/syslog -H 'Content-Type: application/json' -d @docs/templates/mock-sangfor-logs.jsonl",
+            "验证日志被接收并处理"
+          ],
+          "acceptance_criteria": [
+            "Webhook端点响应正常",
+            "日志正确解析为结构化数据",
+            "包含trace_id追踪ID"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "L1-FILTER-001",
+          "layer": "layer1_flood_gate",
+          "category": "rule_filtering",
+          "name": "实现Sigma规则预过滤",
+          "description": "使用Aho-Corasick算法实现高性能规则预过滤，过滤低价值告警",
+          "priority": "high",
+          "test_steps": [
+            "检查Sigma规则加载: python -c 'from src.data_plane.layer1_flood_gate import SigmaFilter'",
+            "测试过滤: 发送测试日志，验证过滤效果"
+          ],
+          "acceptance_criteria": [
+            "Sigma规则正确加载",
+            "Aho-Corasick匹配正常工作",
+            "过滤效率>85%"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "L2-NORMALIZE-001",
+          "layer": "layer2_normalizer",
+          "category": "data_extraction",
+          "name": "实现DSPy实体提取",
+          "description": "使用DSPy从原始日志中提取关键实体（攻击者IP、受害者IP等）",
+          "priority": "high",
+          "test_steps": [
+            "测试提取: python -c 'from src.data_plane.layer2_normalizer import EntityExtractor; e = EntityExtractor(); print(e.extract(test_log))'"
+          ],
+          "acceptance_criteria": [
+            "能从深信服防火墙日志提取攻击者IP",
+            "输出符合OCSF格式",
+            "处理时间<500ms"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "L2-OCSF-001",
+          "layer": "layer2_normalizer",
+          "category": "data_standardization",
+          "name": "实现OCSF标准化映射",
+          "description": "将异构日志映射为OCSF标准格式",
+          "priority": "high",
+          "test_steps": [
+            "验证OCSF输出: python -c 'from src.data_plane.layer2_normalizer import OCSFMapper; print(OCSFMapper.to_ocsf(sample))'"
+          ],
+          "acceptance_criteria": [
+            "输出符合OCSF schema",
+            "Pydantic校验通过"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "L3-GRAPH-001",
+          "layer": "layer3_graph",
+          "category": "knowledge_graph",
+          "name": "实现Neo4j图数据库集成",
+          "description": "实现STIX 2.1到Neo4j的映射，构建知识图谱",
+          "priority": "high",
+          "test_steps": [
+            "测试连接: python -c 'from src.data_plane.layer3_graph import Neo4jClient; c = Neo4jClient(); c.test_connection()'",
+            "测试写入: 写入测试节点并查询验证"
+          ],
+          "acceptance_criteria": [
+            "Neo4j连接正常",
+            "资产节点正确写入",
+            "攻击路径查询正常"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "L3-TOPOLOGY-001",
+          "layer": "layer3_graph",
+          "category": "query",
+          "name": "实现拓扑图查询API",
+          "description": "提供网络拓扑图数据查询接口，支持前端React Flow展示",
+          "priority": "high",
+          "test_steps": [
+            "启动后端: curl http://localhost:8000/api/v1/topology/graph",
+            "验证返回节点和边数据"
+          ],
+          "acceptance_criteria": [
+            "返回节点数据包含类型、状态、位置",
+            "返回边数据包含连接关系",
+            "支持zoom_level参数进行节点聚合"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "FE-REACT-001",
+          "layer": "frontend",
+          "category": "infrastructure",
+          "name": "初始化React前端项目",
+          "description": "创建React + TypeScript + Vite前端项目，配置Tailwind CSS",
+          "priority": "critical",
+          "test_steps": [
+            "检查package.json: cat frontend/package.json",
+            "启动前端: cd frontend && npm run dev"
+          ],
+          "acceptance_criteria": [
+            "Vite开发服务器启动正常",
+            "Tailwind CSS配置正确",
+            "无TypeScript错误"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "FE-NETWORK-001",
+          "layer": "frontend",
+          "category": "visualization",
+          "name": "实现网络拓扑画布",
+          "description": "使用React Flow实现交互式网络拓扑图，支持缩放、拖拽、节点点击",
+          "priority": "high",
+          "test_steps": [
+            "启动前端: http://localhost:5173",
+            "验证拓扑画布显示",
+            "测试缩放和拖拽功能"
+          ],
+          "acceptance_criteria": [
+            "画布正确渲染",
+            "支持缩放/拖拽",
+            "点击节点触发选中事件"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "FE-NODES-001",
+          "layer": "frontend",
+          "category": "visualization",
+          "name": "实现自定义资产节点",
+          "description": "创建Server、Firewall、Database等自定义节点组件",
+          "priority": "high",
+          "test_steps": [
+            "验证各类型节点渲染: 检查不同资产类型的节点显示"
+          ],
+          "acceptance_criteria": [
+            "Server节点正确显示",
+            "Firewall节点正确显示",
+            "Database节点正确显示",
+            "状态颜色正确（normal/warning/critical）"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "FE-STATE-001",
+          "layer": "frontend",
+          "category": "state_management",
+          "name": "实现Zustand状态管理",
+          "description": "使用Zustand管理全局状态（warMode、assets、alerts等）",
+          "priority": "high",
+          "test_steps": [
+            "检查stores/useAppStore.ts存在",
+            "验证状态更新: useAppStore.getState().setWarMode(true)"
+          ],
+          "acceptance_criteria": [
+            "Zustand store正确配置",
+            "warMode状态切换正常",
+            "资产状态更新正常"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "FE-API-001",
+          "layer": "frontend",
+          "category": "integration",
+          "name": "实现API服务层",
+          "description": "封装Axios创建API客户端，获取后端数据",
+          "priority": "high",
+          "test_steps": [
+            "测试API调用: const data = await assetApi.list()"
+          ],
+          "acceptance_criteria": [
+            "API客户端正确配置",
+            "错误处理正常",
+            "类型定义完整"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "FE-WARMODE-001",
+          "layer": "frontend",
+          "category": "visualization",
+          "name": "实现平/战时模式切换",
+          "description": "实现平时模式和战时模式（红黑主题）的视觉切换",
+          "priority": "medium",
+          "test_steps": [
+            "点击模式切换按钮",
+            "验证主题色变化"
+          ],
+          "acceptance_criteria": [
+            "平时模式显示蓝绿调",
+            "战时模式显示红黑调",
+            "过渡动画流畅"
+          ],
+          "passes": false,
+          "implemented_at": null
+        }
+      ]
+    },
+    {
+      "name": "Phase 2: 智能分析能力",
+      "description": "实现AI驱动的威胁分析和智能研判能力",
+      "features": [
+        {
+          "id": "L4-COMPRESS-001",
+          "layer": "layer4_compression",
+          "category": "aggregation",
+          "name": "实现告警故事线生成",
+          "description": "将相关告警聚合为攻击故事线，以时间线形式展示",
+          "priority": "high",
+          "test_steps": [
+            "测试故事线生成: python -c 'from src.data_plane.layer4_compression import StorylineGenerator; g = StorylineGenerator(); print(g.generate(alerts))'"
+          ],
+          "acceptance_criteria": [
+            "相关告警正确聚合",
+            "时间线排序正确",
+            "输出包含MITRE TTP"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "L5-ANALYSIS-001",
+          "layer": "layer5_analyzer",
+          "category": "ai_analysis",
+          "name": "实现DSPy威胁研判",
+          "description": "使用DSPy构建威胁分析Agent，输出MITRE ATT&CK映射和置信度",
+          "priority": "high",
+          "test_steps": [
+            "测试分析: python -c 'from src.data_plane.layer5_analyzer import ThreatAnalyzer; a = ThreatAnalyzer(); print(a.analyze(incident))'"
+          ],
+          "acceptance_criteria": [
+            "输出mitre_tactics",
+            "输出confidence_score",
+            "输出analysis_reasoning"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "L6-ORCHESTRATE-001",
+          "layer": "layer6_orchestrator",
+          "category": "soar",
+          "name": "实现LangGraph状态机",
+          "description": "使用LangGraph实现SOAR剧本和HITL审批流程",
+          "priority": "high",
+          "test_steps": [
+            "测试剧本执行: python -c 'from src.data_plane.layer6_orchestrator import PlaybookEngine; e = PlaybookEngine(); e.execute(trigger)'"
+          ],
+          "acceptance_criteria": [
+            "状态机正确流转",
+            "中断点正常触发",
+            "审批结果正确处理"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "L6-HITL-001",
+          "layer": "layer6_orchestrator",
+          "category": "approval",
+          "name": "实现审批API",
+          "description": "提供待审批任务查询和审批通过/拒绝接口",
+          "priority": "high",
+          "test_steps": [
+            "获取待审批: curl http://localhost:8000/api/v1/orchestration/pending",
+            "审批操作: curl -X POST http://localhost:8000/api/v1/orchestration/{trace_id}/approve"
+          ],
+          "acceptance_criteria": [
+            "返回待审批列表",
+            "审批操作正确更新状态",
+            "审批后LangGraph继续执行"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "FE-COPILOT-001",
+          "layer": "frontend",
+          "category": "ai_interface",
+          "name": "实现AI Copilot聊天界面",
+          "description": "实现自然语言交互界面，与AI助手对话获取威胁分析",
+          "priority": "high",
+          "test_steps": [
+            "打开Copilot面板",
+            "发送测试问题: '最近有哪些高危告警?'"
+          ],
+          "acceptance_criteria": [
+            "聊天界面正确显示",
+            "SSE流式响应正常",
+            "支持上下文理解"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "FE-STORYLINE-001",
+          "layer": "frontend",
+          "category": "visualization",
+          "name": "实现告警故事线面板",
+          "description": "以时间线形式展示攻击事件的完整链路",
+          "priority": "high",
+          "test_steps": [
+            "打开故事线面板",
+            "查看故事线详情"
+          ],
+          "acceptance_criteria": [
+            "时间线正确显示",
+            "点击可选中故事线",
+            "联动拓扑图高亮"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "FE-FEEDBACK-001",
+          "layer": "frontend",
+          "category": "feedback",
+          "name": "实现反馈收集组件",
+          "description": "提供误报/漏报标记功能，收集运维人员反馈",
+          "priority": "medium",
+          "test_steps": [
+            "点击误报标记按钮",
+            "提交反馈"
+          ],
+          "acceptance_criteria": [
+            "反馈按钮正确显示",
+            "提交后API调用成功",
+            "反馈类型正确传递"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "FE-WEBSOCKET-001",
+          "layer": "frontend",
+          "category": "realtime",
+          "name": "实现WebSocket实时通信",
+          "description": "实现WebSocket连接，接收告警推送和审批通知",
+          "priority": "high",
+          "test_steps": [
+            "建立WebSocket连接",
+            "接收测试告警推送"
+          ],
+          "acceptance_criteria": [
+            "连接建立成功",
+            "消息类型正确处理",
+            "重连机制正常"
+          ],
+          "passes": false,
+          "implemented_at": null
+        }
+      ]
+    },
+    {
+      "name": "Phase 3: 高级运营能力",
+      "description": "实现主动防御、自动化响应和持续优化闭环",
+      "features": [
+        {
+          "id": "L7-SIMULATE-001",
+          "layer": "layer7_simulator",
+          "category": "adversarial",
+          "name": "实现AutoGen对抗推演",
+          "description": "使用AutoGen多Agent进行红蓝对抗推演，预测攻击路径",
+          "priority": "medium",
+          "test_steps": [
+            "测试推演: python -c 'from src.data_plane.layer7_simulator import AdversarialSimulator; s = AdversarialSimulator(); print(s.simulate(incident))'"
+          ],
+          "acceptance_criteria": [
+            "多Agent正确配置",
+            "攻击路径预测输出",
+            "防御建议生成"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "L8-EXECUTOR-001",
+          "layer": "layer8_executor",
+          "category": "execution",
+          "name": "实现OpenC2终端执行",
+          "description": "实现标准化OpenC2指令执行，支持阻断、隔离等操作",
+          "priority": "high",
+          "test_steps": [
+            "测试执行: python -c 'from src.data_plane.layer8_executor import OpenC2Executor; e = OpenC2Executor(); e.execute(command)'"
+          ],
+          "acceptance_criteria": [
+            "OpenC2格式正确",
+            "指令正确下发",
+            "执行结果回调"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "L9-REPORT-001",
+          "layer": "layer9_reporter",
+          "category": "reporting",
+          "name": "实现自动报告生成",
+          "description": "使用CrewAI生成安全事件复盘报告",
+          "priority": "medium",
+          "test_steps": [
+            "测试报告生成: python -c 'from src.data_plane.layer9_reporter import ReportGenerator; g = ReportGenerator(); print(g.generate(incident))'"
+          ],
+          "acceptance_criteria": [
+            "报告内容完整",
+            "STIX格式正确",
+            "Markdown格式正确"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "FE-ASSET-001",
+          "layer": "frontend",
+          "category": "visualization",
+          "name": "实现资产全息卡片",
+          "description": "点击节点显示资产360度详情（漏洞、端口、负责人等）",
+          "priority": "high",
+          "test_steps": [
+            "点击资产节点",
+            "查看详情卡片"
+          ],
+          "acceptance_criteria": [
+            "卡片正确弹出",
+            "信息展示完整",
+            "操作按钮可用"
+          ],
+          "passes": false,
+          "implemented_at": null
+        },
+        {
+          "id": "FE-CLUSTER-001",
+          "layer": "frontend",
+          "category": "optimization",
+          "name": "实现节点聚合功能",
+          "description": "缩放级别低时自动聚合节点，优化海量资产渲染性能",
+          "priority": "medium",
+          "test_steps": [
+            "缩小视图",
+            "验证节点聚合"
+          ],
+          "acceptance_criteria": [
+            "缩放时自动聚合",
+            "双击可展开详情",
+            "性能优化有效"
+          ],
+          "passes": false,
+          "implemented_at": null
+        }
+      ]
+    }
+  ]
+}

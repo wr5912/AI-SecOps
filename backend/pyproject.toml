@@ -1,0 +1,192 @@
+[project]
+name = "ai-secops"
+version = "1.0.0"
+description = "AI-SecOps 企业智能安全运营平台"
+authors = [
+    {name = "AI-SecOps Team", email = "team@ai-secops.dev"}
+]
+requires-python = ">=3.12"
+license = {text = "MIT"}
+readme = "README.md"
+keywords = ["security", "ai", "secops", "cybersecurity"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
+
+# 核心依赖
+dependencies = [
+    # Web框架
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "starlette>=0.35.0",
+    
+    # 异步ORM
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+    
+    # 图数据库
+    "neo4j>=5.0.0",
+    
+    # 消息队列
+    "redis>=5.0.0",
+    "aiokafka>=0.10.0",
+    
+    # AI/ML框架
+    "dspy>=2.5.0",
+    "langchain>=0.1.0",
+    "langchain-core>=0.1.0",
+    "langgraph>=0.1.0",
+    "autogen-agentchat>=0.2.0",
+    "crewai>=0.1.0",
+    
+    # LLM客户端
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+    
+    # 数据处理
+    "pyahocorasick>=1.4.0",
+    "orjson>=3.9.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "python-multipart>=0.0.6",
+    
+    # 安全
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=4.1.0",
+    
+    # 日志与监控
+    "loguru>=0.7.0",
+    "structlog>=24.0.0",
+    "sentry-sdk[fastapi]>=1.39.0",
+    
+    # 工具库
+    "python-dotenv>=1.0.0",
+    "httpx>=0.26.0",
+    "tenacity>=8.2.0",
+    "pydantic[email]",
+]
+
+# 开发依赖
+[project.optional-dependencies]
+dev = [
+    # 测试
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "pytest-timeout>=2.2.0",
+    "httpx>=0.26.0",
+    
+    # 代码质量
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+    
+    # 类型
+    "types-redis>=4.6.0",
+    "types-python-jose>=3.3.0",
+    "types-passlib>=1.7.4",
+]
+
+# 传感器/日志处理
+sigmac = [
+    "pysigma>=1.0.0",
+    "pysigma-backend-sqlite>=1.0.0",
+    "pysigma-pipeline-sysmon>=1.0.0",
+]
+
+# 所有可选依赖
+all = [
+    "ai-secops[dev]",
+    "ai-secops[sigmac]",
+]
+
+[project.urls]
+Homepage = "https://github.com/wr5912/AI-SecOps"
+Documentation = "https://docs.ai-secops.dev"
+Repository = "https://github.com/wr5912/AI-SecOps"
+Issues = "https://github.com/wr5912/AI-SecOps/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+# Ruff配置
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["B011"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.mypy.paths]
+"src" = ["backend/src"]
+
+[[tool.mypy.overrides]]
+module = "dspy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "neo4j.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "langchain.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "autogen.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "psycopg2.*"
+ignore_missing_imports = true
+
+# Pytest配置
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["backend/src"]
+addopts = "-v --tb=short --strict-markers"
+
+# 日志配置
+[tool.loguru]
+format = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
