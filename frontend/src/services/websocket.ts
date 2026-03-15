@@ -1,5 +1,5 @@
 /**
- * CyberSentinel - WebSocket Service Layer
+ * AISecOps - WebSocket Service Layer
  * Following FRONTEND_DESIGN_DOCUMENT.md Chapter 10.2
  *
  * Manages real-time connections for:
@@ -46,7 +46,7 @@ class WebSocketManager {
   // Configuration
   private readonly baseUrl: string;
 
-  constructor(baseUrl: string = import.meta.env.VITE_WS_URL || 'wss://api.cybersentinel.local/ws') {
+  constructor(baseUrl: string = import.meta.env.VITE_WS_URL || 'wss://api.AISecOps.local/ws') {
     this.baseUrl = baseUrl;
   }
 

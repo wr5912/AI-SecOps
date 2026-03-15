@@ -1,5 +1,5 @@
 /**
- * CyberSentinel - Main Application
+ * AISecOps - Main Application
  * Optimized with Zustand state management and modular components
  */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -50,9 +50,10 @@ import {
 import { useWebSocket, setupWebSocketListeners } from './services/websocket'
 
 // Components
+import { NotificationPanel, NotificationBadge } from './components/NotificationPanel'
+import { AssetPanel, AssetPanelFloatingBadge } from './components/AssetPanel'
 import { HITLApprovalPanel, HITLFloatingBadge } from './components/HITLApprovalPanel'
-import { FeedbackPanel, FeedbackFloatingButton, InlineFeedback } from './components/FeedbackPanel'
-import { AlertPanel, AlertPanelFloatingBadge } from './components/AlertPanel'
+import { FeedbackPanel, InlineFeedback } from './components/FeedbackPanel'
 
 // ==================== Mock Data ====================
 // Updated to align with FRONTEND_DESIGN_DOCUMENT.md Chapter 4 Data Models
@@ -1087,9 +1088,94 @@ const AssetHologramCard = () => {
   )
 }
 
+// ==================== Navigation Sidebar ====================
+
+type NavigationView = 'threats' | 'approvals' | 'alerts' | 'assets' | 'reports'
+
+interface SidebarProps {
+  currentView: NavigationView;
+  onViewChange: (view: NavigationView) => void;
+  warMode: boolean;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, warMode }) => {
+  const navItems = [
+    { id: 'threats' as NavigationView, label: '威胁处置', icon: Shield, badge: 3 },
+    { id: 'approvals' as NavigationView, label: '审批管理', icon: CheckCheck, badge: 2 },
+    { id: 'alerts' as NavigationView, label: '告警管理', icon: AlertTriangle, badge: 5 },
+    { id: 'assets' as NavigationView, label: '资产管理', icon: Server, badge: 8 },
+    { id: 'reports' as NavigationView, label: '报告管理', icon: FileText, badge: 0 },
+  ]
+
+  return (
+    <div className={`fixed left-0 top-0 bottom-0 w-20 flex flex-col items-center py-6 z-40 transition-all duration-500 ${
+      warMode ? 'bg-red-900/30 border-r border-red-500/30' : 'bg-slate-900/80 border-r border-slate-700/50'
+    }`}>
+      {/* Logo */}
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-8 ${
+        warMode ? 'bg-red-500/20' : 'bg-cyan-500/20'
+      }`}>
+        <Shield className={`w-7 h-7 ${warMode ? 'text-red-400' : 'text-cyan-400'}`} />
+      </div>
+
+      {/* Navigation Items */}
+      <div className="flex flex-col gap-4 flex-1">
+        {navItems.map(item => {
+          const Icon = item.icon
+          const isActive = currentView === item.id
+          
+          return (
+            <button
+              key={item.id}
+              onClick={() => onViewChange(item.id)}
+              className={`relative w-14 h-14 rounded-xl flex flex-col items-center justify-center transition-all duration-300 ${
+                isActive
+                  ? warMode
+                    ? 'bg-red-500/30 text-red-300 shadow-[0_0_20px_rgba(239,68,68,0.4)]'
+                    : 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.3)]'
+                  : warMode
+                    ? 'text-red-400/60 hover:bg-red-500/10 hover:text-red-300'
+                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+              }`}
+            >
+              <Icon className="w-5 h-5 mb-1" />
+              <span className="text-[10px]">{item.label}</span>
+              {item.badge > 0 && (
+                <span className={`absolute -top-1 -right-1 w-5 h-5 text-[10px] font-bold rounded-full flex items-center justify-center ${
+                  warMode ? 'bg-red-500 text-white' : 'bg-red-500 text-white'
+                }`}>
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Settings & User */}
+      <div className="flex flex-col gap-4 mt-auto">
+        <button className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ${
+          warMode ? 'text-red-400/60 hover:bg-red-500/10' : 'text-slate-400 hover:bg-slate-800/50'
+        }`}>
+          <Settings className="w-5 h-5" />
+        </button>
+        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-sm font-medium ${
+          warMode ? 'bg-red-500/30' : 'bg-gradient-to-br from-cyan-500 to-purple-500'
+        }`}>
+          S
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ==================== HUD ====================
 
-const HUD = () => {
+interface HUDProps {
+  onNotificationClick?: () => void;
+}
+
+const HUD: React.FC<HUDProps> = ({ onNotificationClick }) => {
   const { warMode, toggleWarMode, alerts, assets, addNotification, pendingApprovals, setAlerts } = useAppStore()
   const [currentTime, setCurrentTime] = useState(new Date())
 
@@ -1107,12 +1193,14 @@ const HUD = () => {
 
   const assetList = Object.values(assets)
   const alertCount = alerts.filter(a => !a.acknowledged).length
+  const pendingApprovalCount = pendingApprovals.filter(a => a.status === 'pending').length
+  const totalNotificationCount = alertCount + pendingApprovalCount
   const assetCount = assetList.length
   const onlinePercent = Math.round((assetList.filter(a => a.status !== 'compromised').length / assetCount) * 100) || 0
   const threatLevel = warMode ? 92 : Math.min(100, Math.round((alerts.filter(a => a.severity === 'critical').length / 5) * 100) + 30)
 
   return (
-    <div className={`fixed top-0 left-0 right-0 h-14 backdrop-blur-xl border-b z-30 transition-all duration-500 ${
+    <div className={`fixed top-0 left-20 right-0 h-14 backdrop-blur-xl border-b z-30 transition-all duration-500 ${
       warMode
         ? 'bg-red-900/20 border-red-500/30 shadow-[0_0_30px_rgba(239,68,68,0.2)]'
         : 'bg-slate-900/80 border-slate-700/50'
@@ -1126,7 +1214,7 @@ const HUD = () => {
               <Shield className={`w-6 h-6 ${warMode ? 'text-red-400' : 'text-cyan-400'}`} />
             </div>
             <div>
-              <div className="font-bold text-white">CyberSentinel</div>
+              <div className="font-bold text-white">AISecOps</div>
               <div className="text-[10px] text-slate-400">智能安全运营平台</div>
             </div>
           </div>
@@ -1162,17 +1250,17 @@ const HUD = () => {
           </button>
 
           <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 px-3 py-2">
               <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
               <span className="text-slate-400">告警</span>
               <span className="text-white font-medium">{alertCount}</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 px-3 py-2">
               <Server className="w-3.5 h-3.5 text-cyan-400" />
               <span className="text-slate-400">资产</span>
               <span className="text-white font-medium">{assetCount}</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 px-3 py-2">
               <Activity className="w-3.5 h-3.5 text-emerald-400" />
               <span className="text-slate-400">在线</span>
               <span className="text-white font-medium">{onlinePercent}%</span>
@@ -1201,18 +1289,16 @@ const HUD = () => {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => addNotification({ message: '您有 3 条新告警', type: 'info' })}
+              onClick={onNotificationClick}
               className="relative p-2 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-white"
             >
               <Bell className="w-5 h-5" />
-              {alertCount > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
+              {totalNotificationCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
+                  {totalNotificationCount}
+                </span>
+              )}
             </button>
-            <button className="p-2 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-white">
-              <Settings className="w-5 h-5" />
-            </button>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
-              S
-            </div>
           </div>
         </div>
       </div>
@@ -1260,9 +1346,15 @@ function App() {
 
   const [hitlPanelOpen, setHitlPanelOpen] = useState(false)
   const [feedbackPanelOpen, setFeedbackPanelOpen] = useState(false)
-  const [alertPanelOpen, setAlertPanelOpen] = useState(false)
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false)
+  const [assetPanelOpen, setAssetPanelOpen] = useState(false)
+  const [currentView, setCurrentView] = useState<NavigationView>('threats')
 
   const alertCount = alerts.filter(a => !a.acknowledged).length
+  const pendingApprovalCount = useAppStore(state => 
+    state.pendingApprovals.filter(a => a.status === 'pending').length
+  )
+  const totalNotificationCount = alertCount + pendingApprovalCount
 
   // Initialize mock data in store
   useEffect(() => {
@@ -1297,9 +1389,17 @@ function App() {
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl animate-pulse" />
       </div>
 
-      <HUD />
+      <Sidebar 
+        currentView={currentView} 
+        onViewChange={setCurrentView} 
+        warMode={warMode} 
+      />
 
-      <div className="pt-14 h-full">
+      <HUD 
+        onNotificationClick={() => setNotificationPanelOpen(true)}
+      />
+
+      <div className={`pt-14 h-full ${currentView !== 'threats' ? 'hidden' : ''}`}>
         <NetworkCanvas />
       </div>
 
@@ -1307,9 +1407,7 @@ function App() {
       <StorylinePanel />
       <AICopilot />
 
-      <HITLFloatingBadge onClick={() => setHitlPanelOpen(true)} />
-      <FeedbackFloatingButton onClick={() => setFeedbackPanelOpen(true)} />
-      <AlertPanelFloatingBadge onClick={() => setAlertPanelOpen(true)} alertCount={alertCount} />
+      <NotificationBadge onClick={() => setNotificationPanelOpen(true)} />
 
       <HITLApprovalPanel
         isOpen={hitlPanelOpen}
@@ -1321,9 +1419,14 @@ function App() {
         onClose={() => setFeedbackPanelOpen(false)}
       />
 
-      <AlertPanel
-        isOpen={alertPanelOpen}
-        onClose={() => setAlertPanelOpen(false)}
+      <NotificationPanel
+        isOpen={notificationPanelOpen}
+        onClose={() => setNotificationPanelOpen(false)}
+      />
+
+      <AssetPanel
+        isOpen={assetPanelOpen}
+        onClose={() => setAssetPanelOpen(false)}
       />
 
       <ToastNotification />

@@ -9,11 +9,11 @@ AIGC:
     ReservedCode2: 30450221009a2daf8b32a98328a2ac9c5bbc19ec6cd682aa1a10d139d31c73ab097abd149102204970a0e3985c7900825852ea02d3e45e37aad2b12747a0a54bf2ffc31b634634
 ---
 
-# CyberSentinel - 企业智能安全运营平台
+# AISecOps - 企业智能安全运营平台
 
 ## 1. 项目概述
 
-**项目名称**: CyberSentinel SOC Platform
+**项目名称**: AISecOps SOC Platform
 **项目类型**: 企业级安全运营中心 Dashboard Web应用
 **核心功能**: 用于监控、检测、分析和响应企业网络安全威胁的统一"单一窗口"平台，集成传统SIEM能力与AI驱动决策支持和攻击可视化
 **目标用户**: SOC分析师（1-3级）、事件响应人员、CISO、安全工程师

@@ -1,5 +1,5 @@
 /**
- * CyberSentinel - Feedback Collection Component
+ * AISecOps - Feedback Collection Component
  * Following FRONTEND_DESIGN_DOCUMENT.md Chapter 10.4
  *
  * Collects user feedback on:

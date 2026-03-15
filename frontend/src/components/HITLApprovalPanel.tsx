@@ -1,5 +1,5 @@
 /**
- * CyberSentinel - HITL (Human In The Loop) Approval Panel
+ * AISecOps - HITL (Human In The Loop) Approval Panel
  * Following FRONTEND_DESIGN_DOCUMENT.md Chapter 10.3
  *
  * Security-critical operations require human approval before execution:

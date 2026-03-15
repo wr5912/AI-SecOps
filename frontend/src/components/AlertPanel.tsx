@@ -1,5 +1,5 @@
 /**
- * CyberSentinel - Alert Panel Component
+ * AISecOps - Alert Panel Component
  * Displays alerts with inline feedback options
  */
 import { useEffect, useState } from 'react';

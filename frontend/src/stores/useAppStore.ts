@@ -1,5 +1,5 @@
 /**
- * CyberSentinel - Global State Management with Zustand
+ * AISecOps - Global State Management with Zustand
  * Following FRONTEND_DESIGN_DOCUMENT.md Chapter 10.1
  */
 import { create } from 'zustand';
