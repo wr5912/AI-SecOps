@@ -20,6 +20,9 @@ from src.api.routers import (
     copilot,
 )
 
+# 导入WebSocket
+from src.api.websockets import router as ws_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -55,6 +58,9 @@ app.include_router(incidents.router, prefix="/api/v1", tags=["告警"])
 app.include_router(orchestration.router, prefix="/api/v1", tags=["编排"])
 app.include_router(feedback.router, prefix="/api/v1", tags=["反馈"])
 app.include_router(copilot.router, prefix="/api/v1", tags=["Copilot"])
+
+# 注册WebSocket路由
+app.include_router(ws_router, tags=["WebSocket"])
 
 
 # 全局异常处理

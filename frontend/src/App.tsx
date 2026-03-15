@@ -545,7 +545,11 @@ const NetworkCanvas = () => {
           color={warMode ? '#450A0A' : '#1E293B'}
         />
         <Controls
-          className="!bg-slate-800/90 !border-slate-700 !rounded-lg !shadow-xl"
+          className={`!rounded-lg !shadow-xl ${
+            warMode 
+              ? '!bg-red-900/80 !border-red-500/50' 
+              : '!bg-slate-800/90 !border-slate-700'
+          }`}
           showZoom
           showFitView
           showInteractive={false}
@@ -559,8 +563,11 @@ const NetworkCanvas = () => {
             return status === 'critical' || status === 'compromised' ? '#EF4444' : '#0EA5E9'
           }}
           maskColor={warMode ? 'rgba(127, 29, 29, 0.8)' : 'rgba(15, 23, 42, 0.8)'}
-          className="!bg-slate-900/90 !border-slate-700 !rounded-lg"
-          style={{ backgroundColor: warMode ? '#1a0a0a' : '#0f172a' }}
+          className={`!rounded-lg ${warMode ? '!border-red-500/50' : '!border-slate-700'}`}
+          style={{ 
+            backgroundColor: warMode ? '#1a0a0a' : '#0f172a',
+            ...(warMode ? { border: '1px solid rgba(239, 68, 68, 0.3)' } : {})
+          }}
         />
       </ReactFlow>
     </div>
@@ -596,7 +603,7 @@ const AICopilot = () => {
   useEffect(() => {
     if (copilotMessages.length === 0) {
       addCopilotMessage({
-        id: '1',
+        id: `welcome-${Date.now()}`,
         trace_id: 'trace-welcome',
         role: 'assistant',
         content: '您好！我是安全AI助手。可以帮我：\n\n• 分析安全事件和攻击链路\n• 查询威胁情报 (IOC)\n• 建议响应处置方案\n• 解释告警和漏洞\n\n也可以直接点击画布上的资产，我会提供上下文分析。',
@@ -849,6 +856,10 @@ const AICopilot = () => {
 
 // ==================== Storyline Panel ====================
 
+// Common panel dimensions
+const PANEL_WIDTH = 'w-80' // 320px
+const PANEL_GAP = 4 // gap-4 = 16px
+
 const StorylinePanel = () => {
   const {
     storylines,
@@ -865,20 +876,29 @@ const StorylinePanel = () => {
     }
   }, [storylines.length, setStorylines])
 
+  // Calculate max height: 45% of viewport height minus HUD and gaps
+  // Viewport height = 100vh, HUD = 56px, gaps = 32px, so max = (100vh - 56px - 32px) * 0.45
   return (
-    <div className={`absolute bottom-4 left-4 right-20 transition-all duration-500 ${warMode ? 'left-4' : ''}`}>
-      <div className="flex gap-4 overflow-x-auto pb-2">
+    <div className={`absolute left-20 transition-all duration-500 ${PANEL_WIDTH}`}
+      style={{ 
+        top: '56px', // Below HUD (h-14 = 56px)
+        maxHeight: 'calc((100vh - 88px) * 0.45)', // 45% max, with gap consideration
+        height: 'auto' // Auto height, scroll if exceeds max
+      }}
+    >
+      <div className="h-full flex flex-col gap-4 overflow-y-auto">
         {storylines.map(storyline => (
           <div
             key={storyline.id}
             onClick={() => selectStoryline(selectedStorylineId === storyline.id ? null : storyline.id)}
-            className={`flex-shrink-0 w-80 rounded-xl border transition-all duration-300 cursor-pointer backdrop-blur ${
+            className={`flex-shrink-0 rounded-xl border transition-all duration-300 cursor-pointer backdrop-blur ${
               selectedStorylineId === storyline.id
                 ? warMode
                   ? 'bg-red-500/20 border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.3)]'
                   : 'bg-cyan-500/20 border-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.3)]'
                 : 'bg-slate-900/80 border-slate-700/50 hover:border-slate-600'
             }`}
+            style={{ height: 'auto' }}
           >
             <div className="p-4 border-b border-slate-700/30">
               <div className="flex items-center justify-between mb-2">
@@ -899,7 +919,7 @@ const StorylinePanel = () => {
               </h4>
             </div>
 
-            <div className="p-4">
+            <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100% - 80px)' }}>
               <p className="text-xs text-slate-400 mb-3 line-clamp-2">{storyline.description}</p>
 
               <div className="flex items-center justify-between mb-3">
@@ -937,7 +957,7 @@ const StorylinePanel = () => {
 // ==================== Asset Hologram Card ====================
 
 const AssetHologramCard = () => {
-  const { selectedAssetId, selectAsset, assets, addApprovalRequest, warMode } = useAppStore()
+  const { selectedAssetId, selectAsset, assets, addApprovalRequest, addNotification, warMode } = useAppStore()
 
   const asset = selectedAssetId ? assets[selectedAssetId] : null
 
@@ -971,9 +991,21 @@ const AssetHologramCard = () => {
     }
   }
 
+  // Calculate position: below StorylinePanel (45% + gap) and 45% height
+  // StorylinePanel: top 56px, height calc(45% - 32px)
+  // Gap: 16px
+  // AssetHologramCard: top = 56px + 45% + 16px = below StorylinePanel
   return (
-    <div className="fixed left-20 top-1/2 -translate-y-1/2 w-80 backdrop-blur-xl bg-slate-900/95 border border-slate-700/50 rounded-2xl shadow-2xl z-40 overflow-hidden">
-      <div className={`p-4 border-b border-slate-700/30 ${
+    <div 
+      className={`absolute left-20 backdrop-blur-xl bg-slate-900/95 border border-slate-700/50 rounded-2xl shadow-2xl z-40 overflow-hidden transition-all duration-500 ${PANEL_WIDTH}`}
+      style={{ 
+        top: 'calc(45% + 24px)', // Below StorylinePanel (45% + gap)
+        maxHeight: 'calc((100vh - 88px) * 0.45)', // 45% max, with gap consideration
+        height: 'auto', // Auto height, scroll if exceeds max
+        overflowY: 'auto'
+      }}
+    >
+      <div className={`p-4 border-b border-slate-700/30 sticky top-0 ${
         warMode
           ? 'bg-gradient-to-r from-red-500/20 to-orange-500/20'
           : 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20'
@@ -1054,29 +1086,45 @@ const AssetHologramCard = () => {
           <div className="text-xs text-slate-500 mb-2">快速响应</div>
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => handleAction('isolate')}
-              className="px-3 py-2 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors flex items-center justify-center gap-1"
+              onClick={() => {
+                handleAction('isolate')
+                selectAsset(null)
+              }}
+              className="px-3 py-2 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
             >
               <LockIcon className="w-3.5 h-3.5" />
               隔离主机
             </button>
             <button
-              onClick={() => handleAction('block_ip')}
-              className="px-3 py-2 text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-lg transition-colors flex items-center justify-center gap-1"
+              onClick={() => {
+                handleAction('block_ip')
+                selectAsset(null)
+              }}
+              className="px-3 py-2 text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-lg transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
             >
               <ShieldAlert className="w-3.5 h-3.5" />
               封禁IP
             </button>
             <button
-              onClick={() => {}}
-              className="px-3 py-2 text-xs bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors flex items-center justify-center gap-1"
+              onClick={() => {
+                addNotification({
+                  message: '漏洞扫描任务已提交',
+                  type: 'info'
+                })
+              }}
+              className="px-3 py-2 text-xs bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-lg transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
             >
               <Bug className="w-3.5 h-3.5" />
               漏洞扫描
             </button>
             <button
-              onClick={() => {}}
-              className="px-3 py-2 text-xs bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors flex items-center justify-center gap-1"
+              onClick={() => {
+                addNotification({
+                  message: '深度分析任务已提交',
+                  type: 'info'
+                })
+              }}
+              className="px-3 py-2 text-xs bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-lg transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
             >
               <Search className="w-3.5 h-3.5" />
               深度分析
@@ -1399,7 +1447,7 @@ function App() {
         onNotificationClick={() => setNotificationPanelOpen(true)}
       />
 
-      <div className={`pt-14 h-full ${currentView !== 'threats' ? 'hidden' : ''}`}>
+      <div className={`pt-14 pl-20 h-full ${currentView !== 'threats' ? 'hidden' : ''}`}>
         <NetworkCanvas />
       </div>
 
