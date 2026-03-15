@@ -54,6 +54,7 @@ import { NotificationPanel, NotificationBadge } from './components/NotificationP
 import { AssetPanel, AssetPanelFloatingBadge } from './components/AssetPanel'
 import { HITLApprovalPanel, HITLFloatingBadge } from './components/HITLApprovalPanel'
 import { FeedbackPanel, InlineFeedback } from './components/FeedbackPanel'
+import { PlaybookEditor } from './pages/Settings/PlaybookEditor'
 
 // ==================== Mock Data ====================
 // Updated to align with FRONTEND_DESIGN_DOCUMENT.md Chapter 4 Data Models
@@ -1138,7 +1139,7 @@ const AssetHologramCard = () => {
 
 // ==================== Navigation Sidebar ====================
 
-type NavigationView = 'threats' | 'approvals' | 'alerts' | 'assets' | 'reports'
+type NavigationView = 'threats' | 'approvals' | 'alerts' | 'assets' | 'reports' | 'playbooks'
 
 interface SidebarProps {
   currentView: NavigationView;
@@ -1149,6 +1150,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, warMode }) => {
   const navItems = [
     { id: 'threats' as NavigationView, label: '威胁处置', icon: Shield, badge: 3 },
+    { id: 'playbooks' as NavigationView, label: '预案编排', icon: Zap, badge: 0 },
     { id: 'approvals' as NavigationView, label: '审批管理', icon: CheckCheck, badge: 2 },
     { id: 'alerts' as NavigationView, label: '告警管理', icon: AlertTriangle, badge: 5 },
     { id: 'assets' as NavigationView, label: '资产管理', icon: Server, badge: 8 },
@@ -1451,8 +1453,21 @@ function App() {
         <NetworkCanvas />
       </div>
 
-      <AssetHologramCard />
-      <StorylinePanel />
+      {/* Playbook Editor View */}
+      <div className={`pt-14 pl-20 h-full ${currentView !== 'playbooks' ? 'hidden' : ''}`}>
+        <PlaybookEditor onClose={() => setCurrentView('threats')} />
+      </div>
+
+      {/* AssetHologramCard - Only show on threats view */}
+      <div className={currentView === 'threats' ? '' : 'hidden'}>
+        <AssetHologramCard />
+      </div>
+      
+      {/* StorylinePanel - Only show on threats view */}
+      <div className={currentView === 'threats' ? '' : 'hidden'}>
+        <StorylinePanel />
+      </div>
+      
       <AICopilot />
 
       <NotificationBadge onClick={() => setNotificationPanelOpen(true)} />

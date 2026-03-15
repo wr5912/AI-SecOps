@@ -7,6 +7,7 @@ from .alert import Alert, AlertSeverity
 from .storyline import Storyline, StorylineStatus, StorylineStep, StorylineSeverity
 from .approval import ApprovalRequest, ApprovalStatus
 from .api_response import APIResponse
+from .incident_state import IncidentState, create_initial_state, create_test_state
 
 __all__ = [
     "Asset",
@@ -22,4 +23,7 @@ __all__ = [
     "ApprovalRequest",
     "ApprovalStatus",
     "APIResponse",
+    "IncidentState",
+    "create_initial_state",
+    "create_test_state",
 ]
