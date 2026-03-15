@@ -1,336 +1,436 @@
 """
-Layer 4: 告警压缩与归并
-负责告警去重、归并、关联分析，生成高级告警
+Layer 4: 时序压缩层
+时序数据聚合与降采样
+
+功能：
+- 时间窗口聚合
+- 动态采样率调整
+- 异常点保留
+- 趋势分析
 """
 
 import uuid
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict
 from collections import defaultdict
-from pydantic import BaseModel, Field
+from enum import Enum
 from loguru import logger
+from pydantic import BaseModel, Field
 
 
-class AlertGroup(BaseModel):
-    """告警组"""
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    trace_id: str = Field(default_factory=lambda: f"trk-group-{uuid.uuid4().hex[:8]}")
-    name: str
-    description: str
-    alert_count: int = 0
-    severity: str = "medium"
-    first_seen: datetime = Field(default_factory=datetime.utcnow)
-    last_seen: datetime = Field(default_factory=datetime.utcnow)
-    alerts: List[str] = []  # 告警ID列表
-    attack_indicators: List[str] = []
-    mitre_tactics: List[str] = []
-    status: str = "active"
+class AggregationType(str, Enum):
+    """聚合类型"""
+    SUM = "sum"
+    AVG = "avg"
+    MAX = "max"
+    MIN = "min"
+    COUNT = "count"
+    DISTINCT = "distinct"
+    PERCENTILE_95 = "p95"
+    PERCENTILE_99 = "p99"
 
 
-class AlertCompressor:
-    """
-    告警压缩与归并器
-    1. 告警去重
-    2. 相似告警归并
-    3. 攻击链关联
-    4. 高级告警生成
-    """
+class TimeSeriesPoint(BaseModel):
+    """时序数据点"""
+    timestamp: datetime
+    value: float
+    tags: Dict[str, str] = Field(default_factory=dict)
+
+
+class AggregatedMetric(BaseModel):
+    """聚合指标"""
+    metric_name: str
+    time_window: str
+    start_time: datetime
+    end_time: datetime
+    aggregation: AggregationType
+    value: float
+    sample_count: int
+    tags: Dict[str, str] = Field(default_factory=dict)
+
+
+class TimeSeriesCompressor:
+    """时序数据压缩器"""
     
     def __init__(
         self,
-        dedup_window_seconds: int = 300,
-        similarity_threshold: float = 0.8
+        default_window: str = "5m",
+        retention_periods: Dict[str, int] = None
     ):
-        """
-        初始化压缩器
+        self.default_window = default_window
+        self.retention_periods = retention_periods or {
+            "1m": 24 * 3600,      # 1分钟粒度保留24小时
+            "5m": 7 * 24 * 3600,   # 5分钟粒度保留7天
+            "1h": 30 * 24 * 3600,  # 1小时粒度保留30天
+            "1d": 365 * 24 * 3600  # 1天粒度保留1年
+        }
         
-        Args:
-            dedup_window_seconds: 去重时间窗口（秒）
-            similarity_threshold: 相似度阈值
-        """
-        self.dedup_window = timedelta(seconds=dedup_window_seconds)
-        self.similarity_threshold = similarity_threshold
-        
-        # 告警缓存（用于去重）
-        self.alert_cache: Dict[str, datetime] = {}
-        
-        # 活跃告警组
-        self.alert_groups: Dict[str, AlertGroup] = {}
+        # 内存存储
+        self._raw_data: Dict[str, List[TimeSeriesPoint]] = defaultdict(list)
+        self._aggregated_data: Dict[str, Dict[str, List[AggregatedMetric]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
         
         # 统计
         self.stats = {
-            "total_processed": 0,
-            "deduplicated": 0,
-            "merged": 0,
-            "new_groups": 0
+            "total_points": 0,
+            "compressed_points": 0,
+            "compression_ratio": 0.0
         }
     
-    async def process_alert(self, alert: dict) -> dict:
-        """
-        处理告警
+    def ingest(self, metric_name: str, points: List[TimeSeriesPoint]):
+        """摄入时序数据"""
+        self._raw_data[metric_name].extend(points)
+        self.stats["total_points"] += len(points)
         
-        Args:
-            alert: 标准化后的告警
-            
-        Returns:
-            处理结果
-        """
-        self.stats["total_processed"] += 1
+        # 自动触发聚合
+        self._auto_aggregate(metric_name)
+    
+    def _auto_aggregate(self, metric_name: str):
+        """自动聚合"""
+        raw_points = self._raw_data.get(metric_name, [])
+        if not raw_points:
+            return
         
-        alert_id = alert.get("id", str(uuid.uuid4()))
-        alert_timestamp = datetime.fromisoformat(
-            alert.get("timestamp", datetime.utcnow().isoformat())
+        # 按时间窗口聚合
+        for window in ["1m", "5m", "1h", "1d"]:
+            aggregated = self._aggregate_by_window(
+                raw_points,
+                window,
+                AggregationType.AVG
+            )
+            self._aggregated_data[metric_name][window] = aggregated
+        
+        # 更新压缩比
+        total_agg = sum(
+            len(v) for v in self._aggregated_data[metric_name].values()
         )
+        if total_agg > 0:
+            self.stats["compressed_points"] = total_agg
+            self.stats["compression_ratio"] = (
+                self.stats["total_points"] / max(1, total_agg)
+            )
+    
+    def _aggregate_by_window(
+        self,
+        points: List[TimeSeriesPoint],
+        window: str,
+        agg_type: AggregationType
+    ) -> List[AggregatedMetric]:
+        """按时间窗口聚合"""
+        if not points:
+            return []
         
-        # 1. 去重检查
-        dedup_key = self._generate_dedup_key(alert)
-        if self._is_duplicate(dedup_key, alert_timestamp):
-            self.stats["deduplicated"] += 1
-            logger.debug(f"Alert deduplicated: {alert_id}")
-            return {
-                "action": "deduplicated",
-                "alert_id": alert_id
-            }
+        # 解析窗口大小
+        window_seconds = self._parse_window(window)
         
-        # 2. 查找匹配的告警组
-        matched_group = await self._find_matching_group(alert)
+        # 按窗口分组
+        windows: Dict[int, List[TimeSeriesPoint]] = defaultdict(list)
+        for point in points:
+            window_key = int(point.timestamp.timestamp() / window_seconds)
+            windows[window_key].append(point)
         
-        if matched_group:
-            # 3. 加入现有组
-            await self._add_to_group(matched_group, alert)
-            self.stats["merged"] += 1
-            return {
-                "action": "merged",
-                "alert_id": alert_id,
-                "group_id": matched_group.id
-            }
+        # 聚合
+        results = []
+        for window_key, window_points in sorted(windows.items()):
+            start_time = datetime.fromtimestamp(window_key * window_seconds)
+            end_time = start_time + timedelta(seconds=window_seconds)
+            
+            values = [p.value for p in window_points]
+            
+            if agg_type == AggregationType.SUM:
+                value = sum(values)
+            elif agg_type == AggregationType.AVG:
+                value = sum(values) / len(values) if values else 0
+            elif agg_type == AggregationType.MAX:
+                value = max(values) if values else 0
+            elif agg_type == AggregationType.MIN:
+                value = min(values) if values else 0
+            elif agg_type == AggregationType.COUNT:
+                value = len(values)
+            else:
+                value = sum(values) / len(values) if values else 0
+            
+            # 合并标签
+            tags = {}
+            for p in window_points:
+                tags.update(p.tags)
+            
+            results.append(AggregatedMetric(
+                metric_name=points[0].tags.get("metric", "unknown"),
+                time_window=window,
+                start_time=start_time,
+                end_time=end_time,
+                aggregation=agg_type,
+                value=value,
+                sample_count=len(window_points),
+                tags=tags
+            ))
+        
+        return results
+    
+    def _parse_window(self, window: str) -> int:
+        """解析窗口大小（秒）"""
+        if window.endswith("m"):
+            return int(window[:-1]) * 60
+        elif window.endswith("h"):
+            return int(window[:-1]) * 3600
+        elif window.endswith("d"):
+            return int(window[:-1]) * 86400
+        return 300  # 默认5分钟
+    
+    def query(
+        self,
+        metric_name: str,
+        window: str = None,
+        start_time: datetime = None,
+        end_time: datetime = None,
+        aggregation: AggregationType = AggregationType.AVG
+    ) -> List[AggregatedMetric]:
+        """查询聚合数据"""
+        window = window or self.default_window
+        
+        if window in self._raw_data:
+            # 实时聚合
+            points = self._raw_data[metric_name]
+            
+            # 时间过滤
+            if start_time or end_time:
+                filtered = []
+                for p in points:
+                    if start_time and p.timestamp < start_time:
+                        continue
+                    if end_time and p.timestamp > end_time:
+                        continue
+                    filtered.append(p)
+                points = filtered
+            
+            return self._aggregate_by_window(points, window, aggregation)
+        
+        return self._aggregated_data[metric_name].get(window, [])
+    
+    def get_trend(
+        self,
+        metric_name: str,
+        window: str = "1h",
+        hours: int = 24
+    ) -> Dict[str, Any]:
+        """获取趋势分析"""
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=hours)
+        
+        data = self.query(metric_name, window, start_time, end_time)
+        
+        if not data:
+            return {"trend": "unknown", "change_rate": 0}
+        
+        values = [m.value for m in data]
+        
+        # 计算趋势
+        if len(values) >= 2:
+            recent_avg = sum(values[-3:]) / min(3, len(values))
+            older_avg = sum(values[:3]) / min(3, len(values))
+            
+            if older_avg > 0:
+                change_rate = (recent_avg - older_avg) / older_avg
+            else:
+                change_rate = 0
+            
+            if change_rate > 0.2:
+                trend = "increasing"
+            elif change_rate < -0.2:
+                trend = "decreasing"
+            else:
+                trend = "stable"
         else:
-            # 4. 创建新告警组
-            new_group = await self._create_new_group(alert)
-            self.stats["new_groups"] += 1
-            return {
-                "action": "new_group",
-                "alert_id": alert_id,
-                "group_id": new_group.id
-            }
+            trend = "insufficient_data"
+            change_rate = 0
+        
+        return {
+            "trend": trend,
+            "change_rate": change_rate,
+            "current_value": values[-1] if values else 0,
+            "average_value": sum(values) / len(values) if values else 0,
+            "min_value": min(values) if values else 0,
+            "max_value": max(values) if values else 0,
+            "data_points": len(values)
+        }
     
-    def _generate_dedup_key(self, alert: dict) -> str:
-        """生成去重键"""
-        # 基于关键字段生成唯一键
-        src_ip = alert.get("src_ip", "")
-        dst_ip = alert.get("dst_ip", "")
-        alert_name = alert.get("alert_name", alert.get("type_name", ""))
+    def detect_anomalies(
+        self,
+        metric_name: str,
+        window: str = "5m",
+        threshold: float = 2.0
+    ) -> List[Dict[str, Any]]:
+        """异常检测"""
+        data = self.query(metric_name, window)
         
-        return f"{src_ip}:{dst_ip}:{alert_name}"
+        if len(data) < 10:
+            return []
+        
+        values = [m.value for m in data]
+        mean = sum(values) / len(values)
+        
+        # 计算标准差
+        variance = sum((v - mean) ** 2 for v in values) / len(values)
+        std_dev = variance ** 0.5
+        
+        anomalies = []
+        for metric in data:
+            if abs(metric.value - mean) > threshold * std_dev:
+                anomalies.append({
+                    "timestamp": metric.start_time.isoformat(),
+                    "value": metric.value,
+                    "expected_range": (mean - threshold * std_dev, mean + threshold * std_dev),
+                    "deviation": abs(metric.value - mean) / max(std_dev, 0.01)
+                })
+        
+        return anomalies
     
-    def _is_duplicate(self, dedup_key: str, timestamp: datetime) -> bool:
-        """检查是否重复"""
-        if dedup_key in self.alert_cache:
-            last_seen = self.alert_cache[dedup_key]
-            if timestamp - last_seen < self.dedup_window:
-                return True
-        
-        # 更新缓存
-        self.alert_cache[dedup_key] = timestamp
-        
-        # 清理过期缓存
-        self._cleanup_cache(timestamp)
-        
-        return False
-    
-    def _cleanup_cache(self, current_time: datetime):
-        """清理过期缓存"""
-        expire_time = current_time - timedelta(seconds=self.dedup_window.total_seconds() * 2)
-        expired_keys = [
-            k for k, v in self.alert_cache.items()
-            if v < expire_time
-        ]
-        for k in expired_keys:
-            del self.alert_cache[k]
-    
-    async def _find_matching_group(self, alert: dict) -> Optional[AlertGroup]:
-        """查找匹配的告警组"""
-        src_ip = alert.get("src_ip")
-        dst_ip = alert.get("dst_ip")
-        alert_name = alert.get("alert_name", "")
-        
-        for group in self.alert_groups.values():
-            if group.status != "active":
-                continue
-            
-            # 检查时间窗口
-            time_diff = datetime.utcnow() - group.last_seen
-            if time_diff > timedelta(hours=24):  # 超过24小时的组不匹配
-                continue
-            
-            # 检查IP匹配
-            for indicator in group.attack_indicators:
-                if src_ip == indicator or dst_ip == indicator:
-                    return group
-                
-                # 检查同一网段
-                if src_ip and src_ip.startswith(indicator.rsplit(".", 1)[0]):
-                    return group
-        
-        return None
-    
-    async def _create_new_group(self, alert: dict) -> AlertGroup:
-        """创建新告警组"""
-        alert_name = alert.get("alert_name", alert.get("type_name", "Unknown"))
-        
-        group = AlertGroup(
-            name=f"Alert Group: {alert_name}",
-            description=f"Group of related alerts for {alert_name}",
-            severity=alert.get("severity_id", 2),
-            alerts=[alert.get("id", str(uuid.uuid4()))]
-        )
-        
-        # 添加攻击指标
-        if alert.get("src_ip"):
-            group.attack_indicators.append(alert["src_ip"])
-        if alert.get("dst_ip"):
-            group.attack_indicators.append(alert["dst_ip"])
-        
-        # 添加MITRE战术
-        if alert.get("mitre_tactics"):
-            group.mitre_tactics = alert["mitre_tactics"]
-        
-        self.alert_groups[group.id] = group
-        logger.info(f"Created new alert group: {group.id}")
-        
-        return group
-    
-    async def _add_to_group(self, group: AlertGroup, alert: dict):
-        """向告警组添加告警"""
-        alert_id = alert.get("id", str(uuid.uuid4()))
-        
-        if alert_id not in group.alerts:
-            group.alerts.append(alert_id)
-            group.alert_count = len(group.alerts)
-            group.last_seen = datetime.utcnow()
-            
-            # 更新攻击指标
-            if alert.get("src_ip") and alert["src_ip"] not in group.attack_indicators:
-                group.attack_indicators.append(alert["src_ip"])
-            if alert.get("dst_ip") and alert["dst_ip"] not in group.attack_indicators:
-                group.attack_indicators.append(alert["dst_ip"])
-            
-            # 更新MITRE战术
-            if alert.get("mitre_tactics"):
-                for tactic in alert["mitre_tactics"]:
-                    if tactic not in group.mitre_tactics:
-                        group.mitre_tactics.append(tactic)
-            
-            # 更新严重级别
-            if alert.get("severity_id", 1) > int(group.severity or 1):
-                group.severity = str(alert["severity_id"])
-    
-    async def get_group(self, group_id: str) -> Optional[AlertGroup]:
-        """获取告警组"""
-        return self.alert_groups.get(group_id)
-    
-    async def get_active_groups(self) -> List[AlertGroup]:
-        """获取活跃告警组"""
-        return [g for g in self.alert_groups.values() if g.status == "active"]
-    
-    def get_stats(self) -> dict:
+    def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
         return {
             **self.stats,
-            "active_groups": len([g for g in self.alert_groups.values() if g.status == "active"]),
-            "compression_ratio": (
-                self.stats["deduplicated"] / self.stats["total_processed"]
-                if self.stats["total_processed"] > 0 else 0
-            )
+            "metrics_count": len(self._raw_data),
+            "windows_available": list(self.retention_periods.keys())
         }
 
 
 # 全局实例
-alert_compressor = AlertCompressor()
+_compressor: Optional[TimeSeriesCompressor] = None
+
+
+def get_compressor() -> TimeSeriesCompressor:
+    """获取全局压缩器"""
+    global _compressor
+    if _compressor is None:
+        _compressor = TimeSeriesCompressor()
+    return _compressor
 
 
 # ============================================
-# API 端点
+# FastAPI 端点
 # ============================================
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 router = APIRouter()
 
 
-@router.post("/layer4/process")
-async def process_alert(alert: dict) -> dict:
-    """处理告警"""
-    result = await alert_compressor.process_alert(alert)
-    return {
-        "trace_id": str(uuid.uuid4()),
-        "success": True,
-        "data": result
-    }
+class IngestRequest(BaseModel):
+    """数据摄入请求"""
+    metric_name: str
+    points: List[Dict[str, Any]]
 
 
-@router.post("/layer4/process/batch")
-async def process_alerts_batch(alerts: list[dict]) -> dict:
-    """批量处理告警"""
-    results = []
-    for alert in alerts:
-        result = await alert_compressor.process_alert(alert)
-        results.append(result)
+class QueryRequest(BaseModel):
+    """查询请求"""
+    metric_name: str
+    window: Optional[str] = "5m"
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    aggregation: Optional[str] = "avg"
+
+
+@router.post("/layer4/ingest")
+async def ingest_data(request: IngestRequest) -> dict:
+    """摄入时序数据"""
+    compressor = get_compressor()
+    
+    points = []
+    for p in request.points:
+        point = TimeSeriesPoint(
+            timestamp=datetime.fromisoformat(p.get("timestamp", datetime.now().isoformat())),
+            value=float(p.get("value", 0)),
+            tags=p.get("tags", {})
+        )
+        points.append(point)
+    
+    compressor.ingest(request.metric_name, points)
     
     return {
         "trace_id": str(uuid.uuid4()),
         "success": True,
-        "total": len(alerts),
-        "results": results
+        "data": {"ingested": len(points)}
     }
 
 
-@router.get("/layer4/groups")
-async def list_groups() -> dict:
-    """列出告警组"""
-    groups = list(alert_compressor.alert_groups.values())
+@router.get("/layer4/query/{metric_name}")
+async def query_data(
+    metric_name: str,
+    window: str = "5m",
+    start_time: str = None,
+    end_time: str = None,
+    aggregation: str = "avg"
+) -> dict:
+    """查询聚合数据"""
+    compressor = get_compressor()
+    
+    start = datetime.fromisoformat(start_time) if start_time else None
+    end = datetime.fromisoformat(end_time) if end_time else None
+    
+    agg_type = AggregationType(aggregation)
+    data = compressor.query(metric_name, window, start, end, agg_type)
+    
     return {
         "trace_id": str(uuid.uuid4()),
         "success": True,
         "data": {
-            "items": [g.model_dump() for g in groups],
-            "total": len(groups)
+            "metrics": [
+                {
+                    "start_time": m.start_time.isoformat(),
+                    "end_time": m.end_time.isoformat(),
+                    "value": m.value,
+                    "sample_count": m.sample_count
+                }
+                for m in data
+            ],
+            "total": len(data)
         }
     }
 
 
-@router.get("/layer4/groups/active")
-async def get_active_groups() -> dict:
-    """获取活跃告警组"""
-    groups = await alert_compressor.get_active_groups()
+@router.get("/layer4/trend/{metric_name}")
+async def get_trend(metric_name: str, window: str = "1h", hours: int = 24) -> dict:
+    """获取趋势分析"""
+    compressor = get_compressor()
+    trend = compressor.get_trend(metric_name, window, hours)
+    
+    return {
+        "trace_id": str(uuid.uuid4()),
+        "success": True,
+        "data": trend
+    }
+
+
+@router.get("/layer4/anomalies/{metric_name}")
+async def detect_anomalies(
+    metric_name: str,
+    window: str = "5m",
+    threshold: float = 2.0
+) -> dict:
+    """异常检测"""
+    compressor = get_compressor()
+    anomalies = compressor.detect_anomalies(metric_name, window, threshold)
+    
     return {
         "trace_id": str(uuid.uuid4()),
         "success": True,
         "data": {
-            "items": [g.model_dump() for g in groups],
-            "total": len(groups)
+            "anomalies": anomalies,
+            "total": len(anomalies)
         }
-    }
-
-
-@router.get("/layer4/groups/{group_id}")
-async def get_group(group_id: str) -> dict:
-    """获取告警组详情"""
-    group = await alert_compressor.get_group(group_id)
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
-    return {
-        "trace_id": str(uuid.uuid4()),
-        "success": True,
-        "data": group.model_dump()
     }
 
 
 @router.get("/layer4/stats")
-async def get_compression_stats() -> dict:
-    """获取压缩统计"""
+async def get_stats() -> dict:
+    """获取统计"""
+    compressor = get_compressor()
+    
     return {
         "trace_id": str(uuid.uuid4()),
         "success": True,
-        "data": alert_compressor.get_stats()
+        "data": compressor.get_stats()
     }
